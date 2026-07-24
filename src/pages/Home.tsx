@@ -13,7 +13,7 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { useTextReveal } from "@/hooks/useTextReveal";
 import { usePrefersReducedMotion } from "@/hooks/useReducedMotion";
 import { scrollToTarget } from "@/hooks/useSmoothScroll";
-import { ScenicOceanHero } from "@/components/home/ScenicOceanHero";
+import { CinematicOceanHero } from "@/components/home/CinematicOceanHero";
 import { oceanState, progressToDepth } from "@/lib/oceanState";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -120,8 +120,8 @@ function HeroSurface() {
       aria-label="Above the surface"
       className="relative flex h-[112vh] flex-col items-center justify-center overflow-hidden"
     >
-      {/* 3D Scenic Ocean Horizon Background */}
-      <ScenicOceanHero />
+      {/* 70% Sky / 30% Ocean Cinematic Surface Scene */}
+      <CinematicOceanHero />
 
       {/* Title */}
       <div className="hero-title-block relative z-10 -mt-[8vh] flex flex-col items-center px-6 text-center drop-shadow-2xl">
