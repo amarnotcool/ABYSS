@@ -109,49 +109,51 @@ const playSystemSound = (type: "sonar" | "thruster" | "click") => {
 function RoboticClaw({ active }: { active: boolean }) {
   if (!active) return null;
   return (
-    <group position={[0, -0.6, 2.0]} rotation={[-0.2, 0, 0]}>
-      {/* Base shoulder pivot */}
-      <mesh castShadow receiveShadow>
-        <cylinderGeometry args={[0.07, 0.07, 0.2, 16]} />
-        <meshStandardMaterial color="#334155" metalness={0.8} roughness={0.3} />
-      </mesh>
-      {/* Upper arm segment */}
-      <group position={[0, -0.15, 0.2]} rotation={[0.35, 0, 0]}>
+    <group position={[2.0, -0.6, 0]} rotation={[0, Math.PI / 2, 0]}>
+      <group rotation={[-0.2, 0, 0]}>
+        {/* Base shoulder pivot */}
         <mesh castShadow receiveShadow>
-          <boxGeometry args={[0.05, 0.05, 0.6]} />
-          <meshStandardMaterial color="#475569" metalness={0.9} roughness={0.15} />
+          <cylinderGeometry args={[0.07, 0.07, 0.2, 16]} />
+          <meshStandardMaterial color="#334155" metalness={0.8} roughness={0.3} />
         </mesh>
-        {/* Elbow Joint */}
-        <group position={[0, 0, 0.3]} rotation={[-0.6, 0, 0]}>
+        {/* Upper arm segment */}
+        <group position={[0, -0.15, 0.2]} rotation={[0.35, 0, 0]}>
           <mesh castShadow receiveShadow>
-            <sphereGeometry args={[0.07, 12, 12]} />
-            <meshStandardMaterial color="#1e293b" />
+            <boxGeometry args={[0.05, 0.05, 0.6]} />
+            <meshStandardMaterial color="#475569" metalness={0.9} roughness={0.15} />
           </mesh>
-          {/* Forearm segment */}
-          <group position={[0, 0, 0.25]} rotation={[0.2, 0, 0]}>
+          {/* Elbow Joint */}
+          <group position={[0, 0, 0.3]} rotation={[-0.6, 0, 0]}>
             <mesh castShadow receiveShadow>
-              <boxGeometry args={[0.04, 0.04, 0.45]} />
-              <meshStandardMaterial color="#475569" metalness={0.9} roughness={0.15} />
+              <sphereGeometry args={[0.07, 12, 12]} />
+              <meshStandardMaterial color="#1e293b" />
             </mesh>
-            {/* Grabber fingers */}
-            <group position={[0, 0, 0.22]}>
-              <mesh>
-                <cylinderGeometry args={[0.045, 0.045, 0.07, 8]} />
-                <meshStandardMaterial color="#334155" />
+            {/* Forearm segment */}
+            <group position={[0, 0, 0.25]} rotation={[0.2, 0, 0]}>
+              <mesh castShadow receiveShadow>
+                <boxGeometry args={[0.04, 0.04, 0.45]} />
+                <meshStandardMaterial color="#475569" metalness={0.9} roughness={0.15} />
               </mesh>
-              {/* Left Claw Prong */}
-              <group position={[-0.03, 0, 0.04]} rotation={[0, 0.25, 0]}>
-                <mesh castShadow>
-                  <boxGeometry args={[0.015, 0.03, 0.1]} />
-                  <meshStandardMaterial color="#94a3b8" metalness={0.7} />
+              {/* Grabber fingers */}
+              <group position={[0, 0, 0.22]}>
+                <mesh>
+                  <cylinderGeometry args={[0.045, 0.045, 0.07, 8]} />
+                  <meshStandardMaterial color="#334155" />
                 </mesh>
-              </group>
-              {/* Right Claw Prong */}
-              <group position={[0.03, 0, 0.04]} rotation={[0, -0.25, 0]}>
-                <mesh castShadow>
-                  <boxGeometry args={[0.015, 0.03, 0.1]} />
-                  <meshStandardMaterial color="#94a3b8" metalness={0.7} />
-                </mesh>
+                {/* Left Claw Prong */}
+                <group position={[-0.03, 0, 0.04]} rotation={[0, 0.25, 0]}>
+                  <mesh castShadow>
+                    <boxGeometry args={[0.015, 0.03, 0.1]} />
+                    <meshStandardMaterial color="#94a3b8" metalness={0.7} />
+                  </mesh>
+                </group>
+                {/* Right Claw Prong */}
+                <group position={[0.03, 0, 0.04]} rotation={[0, -0.25, 0]}>
+                  <mesh castShadow>
+                    <boxGeometry args={[0.015, 0.03, 0.1]} />
+                    <meshStandardMaterial color="#94a3b8" metalness={0.7} />
+                  </mesh>
+                </group>
               </group>
             </group>
           </group>
@@ -188,7 +190,7 @@ function PulsingSonar({ active, glowColor }: { active: boolean; glowColor: strin
   });
 
   return (
-    <group position={[0, -1.0, 0.6]}>
+    <group position={[0.6, -1.0, 0]} rotation={[0, Math.PI / 2, 0]}>
       {/* Translucent Domed Pod */}
       {active && (
         <mesh position={[0, -0.1, 0]} castShadow>
@@ -228,7 +230,7 @@ function PulsingSonar({ active, glowColor }: { active: boolean; glowColor: strin
 function QuadLightbar({ active }: { active: boolean }) {
   if (!active) return null;
   return (
-    <group position={[0, 1.0, 0.5]}>
+    <group position={[0.5, 1.0, 0]} rotation={[0, Math.PI / 2, 0]}>
       {/* Riser frame */}
       <mesh castShadow receiveShadow>
         <boxGeometry args={[1.3, 0.08, 0.08]} />
@@ -256,7 +258,7 @@ function QuadLightbar({ active }: { active: boolean }) {
             color="#ffffff"
             castShadow
             position={[0, 0.1, 0.1]}
-            target-position={[x * 4, -7, 10]}
+            target-position={[10, -7, -x * 4]}
           />
           {/* Simulated Volumetric Cone mesh */}
           <mesh position={[0, 3.5, 1.7]} rotation={[Math.PI / 2 - 0.4, 0, 0]}>
