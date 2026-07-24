@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MutableRefObject, type ReactNode, Suspense } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Environment, Float, Lightformer } from "@react-three/drei";
 import * as THREE from "three";
@@ -251,22 +251,24 @@ function SubViewer() {
               toneMappingExposure: 1.15,
             }}
           >
-            <ambientLight intensity={0.5} color="#4A90E2" />
-            <directionalLight position={[5, 6, 3]} intensity={2.8} color="#cfeaff" />
-            <directionalLight position={[-6, -3, -4]} intensity={1.2} color="#1F509A" />
-            <pointLight position={[-4, 2, 4]} intensity={1.6} color="#00E5FF" />
-            <Environment resolution={64} frames={1}>
-              <Lightformer intensity={2.4} position={[0, 10, 0]} rotation-x={Math.PI / 2} scale={[24, 24, 1]} color="#cfeaff" />
-              <Lightformer intensity={0.8} position={[-9, 2, -7]} scale={[12, 20, 1]} color="#1F509A" />
-              <Lightformer intensity={0.6} position={[9, -2, 5]} scale={[10, 16, 1]} color="#0e3f6e" />
-            </Environment>
-            <Float speed={1.4} rotationIntensity={0.35} floatIntensity={0.7}>
-              <Turntable>
-                <AssetBoundary>
-                  <ErebusShowcase xrayRef={xrayRef} />
-                </AssetBoundary>
-              </Turntable>
-            </Float>
+            <Suspense fallback={null}>
+              <ambientLight intensity={0.5} color="#4A90E2" />
+              <directionalLight position={[5, 6, 3]} intensity={2.8} color="#cfeaff" />
+              <directionalLight position={[-6, -3, -4]} intensity={1.2} color="#1F509A" />
+              <pointLight position={[-4, 2, 4]} intensity={1.6} color="#00E5FF" />
+              <Environment resolution={64} frames={1}>
+                <Lightformer intensity={2.4} position={[0, 10, 0]} rotation-x={Math.PI / 2} scale={[24, 24, 1]} color="#cfeaff" />
+                <Lightformer intensity={0.8} position={[-9, 2, -7]} scale={[12, 20, 1]} color="#1F509A" />
+                <Lightformer intensity={0.6} position={[9, -2, 5]} scale={[10, 16, 1]} color="#0e3f6e" />
+              </Environment>
+              <Float speed={1.4} rotationIntensity={0.35} floatIntensity={0.7}>
+                <Turntable>
+                  <AssetBoundary>
+                    <ErebusShowcase xrayRef={xrayRef} />
+                  </AssetBoundary>
+                </Turntable>
+              </Float>
+            </Suspense>
           </Canvas>
         )}
       </div>
