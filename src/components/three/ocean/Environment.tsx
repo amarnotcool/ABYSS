@@ -1,0 +1,280 @@
+import { useMemo, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { Environment, Lightformer } from "@react-three/drei";
+import * as THREE from "three";
+import { oceanState } from "@/lib/oceanState";
+import { remap } from "@/lib/utils";
+
+/* ------------------------------------------------------------------ */
+/* Depth palette (tuned for ACES filmic output)                        */
+/* ------------------------------------------------------------------ */
+
+const STOPS: Array<[number, string, string]> = [
+  [0.0, "#4da3e8", "#155097"],
+  [0.16, "#2a70c4", "#11499a"],
+  [0.34, "#11499a", "#093472"],
+  [0.55, "#093472", "#041d44"],
+  [0.75, "#031530", "#010a18"],
+  [1.0, "#010c1d", "#00060e"],
+];
+
+const stopColors = STOPS.map(([p, a, b]) => ({
+  p,
+  top: new THREE.Color(a),
+  bottom: new THREE.Color(b),
+}));
+
+export function samplePalette(p: number, outTop: THREE.Color, outBottom: THREE.Color) {
+  for (let i = 0; i < stopColors.length - 1; i++) {
+    const a = stopColors[i];
+    const b = stopColors[i + 1];
+    if (p <= b.p) {
+      const t = THREE.MathUtils.clamp((p - a.p) / (b.p - a.p), 0, 1);
+      outTop.lerpColors(a.top, b.top, t);
+      outBottom.lerpColors(a.bottom, b.bottom, t);
+      return;
+    }
+  }
+  outTop.copy(stopColors[stopColors.length - 1].top);
+  outBottom.copy(stopColors[stopColors.length - 1].bottom);
+}
+
+/* ------------------------------------------------------------------ */
+/* Gradient backdrop with caustic shimmer                              */
+/* ------------------------------------------------------------------ */
+
+export function Backdrop() {
+  const mat = useRef<THREE.ShaderMaterial>(null!);
+  const uniforms = useMemo(
+    () => ({
+      uTop: { value: new THREE.Color("#4da3e8") },
+      uBottom: { value: new THREE.Color("#155097") },
+      uTime: { value: 0 },
+      uCaustics: { value: 1 },
+    }),
+    []
+  );
+
+  useFrame((state) => {
+    const m = mat.current;
+    if (!m) return;
+    m.uniforms.uTime.value = state.clock.elapsedTime;
+    samplePalette(oceanState.progress, m.uniforms.uTop.value, m.uniforms.uBottom.value);
+    m.uniforms.uCaustics.value = remap(oceanState.progress, 0.0, 0.3, 1, 0);
+  });
+
+  return (
+    <mesh position={[0, 0, -44]}>
+      <planeGeometry args={[240, 140]} />
+      <shaderMaterial
+        ref={mat}
+        uniforms={uniforms}
+        depthWrite={false}
+        vertexShader={/* glsl */ `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `}
+        fragmentShader={/* glsl */ `
+          varying vec2 vUv;
+          uniform vec3 uTop;
+          uniform vec3 uBottom;
+          uniform float uTime;
+          uniform float uCaustics;
+
+          void main() {
+            vec3 col = mix(uBottom, uTop, pow(vUv.y, 1.3));
+            float c1 = sin(vUv.x * 42.0 + uTime * 0.7) * sin(vUv.y * 30.0 - uTime * 0.5);
+            float c2 = sin(vUv.x * 23.0 - uTime * 0.4 + vUv.y * 18.0);
+            float caustic = pow(max(0.0, c1 * c2), 2.0) * uCaustics * smoothstep(0.45, 1.0, vUv.y);
+            col += vec3(0.4, 0.75, 0.85) * caustic * 0.22;
+            gl_FragColor = vec4(col, 1.0);
+          }
+        `}
+      />
+    </mesh>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* God rays                                                            */
+/* ------------------------------------------------------------------ */
+
+export function GodRays() {
+  const mat = useRef<THREE.ShaderMaterial>(null!);
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uIntensity: { value: 1 } }), []);
+
+  useFrame((state) => {
+    const m = mat.current;
+    if (!m) return;
+    m.uniforms.uTime.value = state.clock.elapsedTime;
+    m.uniforms.uIntensity.value = remap(oceanState.progress, 0.02, 0.34, 1, 0);
+  });
+
+  return (
+    <mesh position={[0, 9, -30]}>
+      <planeGeometry args={[160, 95]} />
+      <shaderMaterial
+        ref={mat}
+        uniforms={uniforms}
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        vertexShader={/* glsl */ `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `}
+        fragmentShader={/* glsl */ `
+          varying vec2 vUv;
+          uniform float uTime;
+          uniform float uIntensity;
+
+          void main() {
+            vec2 p = vUv - vec2(0.5, 1.35);
+            float a = atan(p.x, -p.y);
+            float rays = sin(a * 26.0 + uTime * 0.22) * 0.5 + 0.5;
+            rays *= sin(a * 13.0 - uTime * 0.13) * 0.5 + 0.5;
+            rays = pow(rays, 2.4);
+            float fade = smoothstep(0.05, 0.95, vUv.y);
+            float centerFade = 1.0 - smoothstep(0.0, 0.8, abs(vUv.x - 0.5) * 2.0);
+            gl_FragColor = vec4(vec3(0.7, 0.92, 1.0), rays * fade * centerFade * uIntensity * 0.5);
+          }
+        `}
+      />
+    </mesh>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* The surface, seen from below                                        */
+/* ------------------------------------------------------------------ */
+
+export function SurfaceFromBelow() {
+  const mat = useRef<THREE.ShaderMaterial>(null!);
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uFade: { value: 0 } }), []);
+
+  useFrame((state) => {
+    const m = mat.current;
+    if (!m) return;
+    m.uniforms.uTime.value = state.clock.elapsedTime;
+    m.uniforms.uFade.value = remap(oceanState.progress, 0.02, 0.2, 0.85, 0);
+  });
+
+  return (
+    <mesh position={[0, 12, -18]} rotation={[Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[300, 220, 1, 1]} />
+      <shaderMaterial
+        ref={mat}
+        uniforms={uniforms}
+        transparent
+        depthWrite={false}
+        side={THREE.DoubleSide}
+        vertexShader={/* glsl */ `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `}
+        fragmentShader={/* glsl */ `
+          varying vec2 vUv;
+          uniform float uTime;
+          uniform float uFade;
+
+          // layered directional waves -> fake normal
+          vec2 waveN(vec2 p) {
+            float n1 = sin(p.x * 6.0 + uTime * 0.9) * 0.5;
+            float n2 = sin((p.x + p.y) * 9.0 - uTime * 1.3) * 0.3;
+            float n3 = sin(p.y * 13.0 + uTime * 0.7) * 0.2;
+            float nx = n1 + n2 * 0.7 + n3 * 0.4;
+            float ny = n2 + n3;
+            return vec2(nx, ny);
+          }
+
+          void main() {
+            vec2 p = (vUv - 0.5) * 14.0;
+            vec2 n2 = waveN(p);
+            vec3 n = normalize(vec3(n2.x * 0.35, 1.0, n2.y * 0.35));
+            vec3 sunDir = normalize(vec3(0.25, 1.0, 0.35));
+            float spec = pow(max(dot(n, sunDir), 0.0), 60.0);
+            float sheen = pow(max(dot(n, sunDir), 0.0), 6.0);
+
+            vec3 col = mix(vec3(0.32, 0.62, 0.86), vec3(1.0, 0.98, 0.9), spec);
+            col += vec3(0.5, 0.75, 0.9) * sheen * 0.35;
+
+            float radial = 1.0 - smoothstep(0.15, 0.5, length(vUv - 0.5));
+            gl_FragColor = vec4(col, (0.25 + spec * 0.75 + sheen * 0.2) * radial * uFade);
+          }
+        `}
+      />
+    </mesh>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Fog, lights and image-based lighting that deepen with descent       */
+/* ------------------------------------------------------------------ */
+
+export function Atmosphere() {
+  const { scene } = useThree();
+  const fog = useMemo(() => new THREE.FogExp2("#11499a", 0.02), []);
+  const sun = useRef<THREE.DirectionalLight>(null!);
+  const hemi = useRef<THREE.HemisphereLight>(null!);
+  const tmpTop = useMemo(() => new THREE.Color(), []);
+  const tmpBottom = useMemo(() => new THREE.Color(), []);
+
+  useFrame(() => {
+    const p = oceanState.progress;
+    scene.fog = fog;
+    samplePalette(p, tmpTop, tmpBottom);
+    fog.color.copy(tmpBottom);
+    fog.density = 0.016 + p * 0.02;
+    scene.environmentIntensity = remap(p, 0, 0.7, 1.1, 0.18);
+    if (sun.current) sun.current.intensity = remap(p, 0, 0.55, 2.6, 0.3);
+    if (hemi.current) hemi.current.intensity = remap(p, 0, 0.7, 0.9, 0.15);
+  });
+
+  return (
+    <>
+      <hemisphereLight ref={hemi} args={["#9fd4f8", "#0a2c58", 0.9]} />
+      <directionalLight ref={sun} position={[6, 18, 4]} color="#cfeaff" intensity={2.6} />
+      <ambientLight intensity={0.25} color="#4A90E2" />
+      <Environment resolution={64} frames={1}>
+        {/* bright sheet overhead = the sun through water */}
+        <Lightformer
+          intensity={3}
+          position={[0, 12, 0]}
+          rotation-x={Math.PI / 2}
+          scale={[26, 26, 1]}
+          color="#cfeaff"
+        />
+        <Lightformer intensity={0.8} position={[-10, 2, -8]} scale={[14, 22, 1]} color="#1F509A" />
+        <Lightformer intensity={0.7} position={[10, -2, 6]} scale={[12, 18, 1]} color="#0e3f6e" />
+        <Lightformer intensity={0.4} position={[0, -12, 0]} rotation-x={-Math.PI / 2} scale={[24, 24, 1]} color="#02142c" />
+      </Environment>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Underwater camera — never on a tripod                               */
+/* ------------------------------------------------------------------ */
+
+export function CameraRig() {
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    const cam = state.camera;
+    const targetX = oceanState.mouseX * 0.9 + Math.sin(t * 0.11) * 0.4 + Math.sin(t * 0.23) * 0.18;
+    const targetY = oceanState.mouseY * 0.55 + Math.sin(t * 0.17) * 0.28 + Math.cos(t * 0.07) * 0.12;
+    cam.position.x = THREE.MathUtils.lerp(cam.position.x, targetX, 0.03);
+    cam.position.y = THREE.MathUtils.lerp(cam.position.y, targetY, 0.03);
+    cam.lookAt(0, 0, -12);
+    cam.rotation.z += Math.sin(t * 0.13) * 0.013 + Math.sin(t * 0.31) * 0.004;
+  });
+  return null;
+}

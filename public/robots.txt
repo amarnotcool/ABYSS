@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://abyss-expeditions.com/sitemap.xml
