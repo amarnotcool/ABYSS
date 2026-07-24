@@ -154,8 +154,9 @@ export function OceanParticles() {
   return (
     <>
       {/* Marine snow — slowly sinking motes, ever-present */}
+      {/* Marine snow — reduced from 520 for performance, still visually dense */}
       <Layer
-        count={520}
+        count={300}
         dir={-1}
         speed={[0.12, 0.4]}
         sizeRange={[3, 7]}
@@ -165,8 +166,9 @@ export function OceanParticles() {
         window={[0.0, 0.05, 2, 3]}
       />
       {/* Plankton — tiny twinkling drift, glows more with depth */}
+      {/* Plankton — reduced from 300 for performance */}
       <Layer
-        count={300}
+        count={180}
         dir={-1}
         speed={[0.04, 0.14]}
         sizeRange={[1.5, 3.5]}
@@ -177,8 +179,9 @@ export function OceanParticles() {
         window={[0.05, 0.2, 2, 3]}
       />
       {/* Bubble streams — rise fast, upper ocean only */}
+      {/* Bubbles — reduced from 140 for performance */}
       <Layer
-        count={140}
+        count={100}
         dir={1}
         speed={[1.6, 3.4]}
         sizeRange={[4, 10]}

@@ -13,7 +13,6 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { useTextReveal } from "@/hooks/useTextReveal";
 import { usePrefersReducedMotion } from "@/hooks/useReducedMotion";
 import { scrollToTarget } from "@/hooks/useSmoothScroll";
-import { CinematicOceanHero } from "@/components/home/CinematicOceanHero";
 import { oceanState, progressToDepth } from "@/lib/oceanState";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -120,9 +119,6 @@ function HeroSurface() {
       aria-label="Above the surface"
       className="relative flex h-[112vh] flex-col items-center justify-center overflow-hidden"
     >
-      {/* 70% Sky / 30% Ocean Cinematic Surface Scene */}
-      <CinematicOceanHero />
-
       {/* Title */}
       <div className="hero-title-block relative z-10 -mt-[8vh] flex flex-col items-center px-6 text-center drop-shadow-2xl">
         <motion.p
@@ -415,7 +411,7 @@ function SceneDeep() {
 function SceneFloor() {
   const h = useTextReveal<HTMLHeadingElement>();
   return (
-    <SceneShell depth="4000 M · THE FLOOR" className="min-h-[130vh]">
+    <SceneShell depth="4000 M · THE FLOOR" className="min-h-[100vh]">
       <div className="mx-auto max-w-3xl text-center">
         <Reveal>
           <p className="kicker mb-6">Scene · Arrival</p>
@@ -493,9 +489,6 @@ export default function Home() {
         <SceneBioluminescence />
         <SceneDeep />
         <SceneFloor />
-      </div>
-
-      <div className="relative z-10">
         <Footer />
       </div>
     </PageWrapper>

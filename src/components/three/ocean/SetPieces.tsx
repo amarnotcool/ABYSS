@@ -38,90 +38,129 @@ function Sway({
   );
 }
 
-/** Instanced scatter of the rocks model — one draw call for the whole field. */
-function RockField({
-  count,
-  spread = [30, 10],
-  size = [0.8, 2.6],
-  y = 0,
-}: {
-  count: number;
-  spread?: [number, number];
-  size?: [number, number];
-  y?: number;
-}) {
-  const { scene } = useGLTF(MODELS.rocks.path, DRACO_PATH);
-
-  const { geo, mat, matrices } = useMemo(() => {
-    let geo: THREE.BufferGeometry | undefined;
-    let mat: THREE.Material | undefined;
-    scene.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh && !geo) {
-        geo = m.geometry;
-        mat = m.material as THREE.Material;
-      }
-    });
-    // normalize the source geometry to unit size
-    geo = geo!.clone();
-    geo.computeBoundingBox();
-    const bb = geo.boundingBox!;
-    const dims = bb.getSize(new THREE.Vector3());
-    const inv = 1 / (Math.max(dims.x, dims.y, dims.z) || 1);
-    geo.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
-    geo.scale(inv, inv, inv);
-
-    const matrices: THREE.Matrix4[] = [];
-    const dummy = new THREE.Object3D();
-    for (let i = 0; i < count; i++) {
-      const s = size[0] + ((i * 7919) % 1000) / 1000 * (size[1] - size[0]);
-      dummy.position.set(
-        (((i * 2654435761) % 1000) / 1000 - 0.5) * spread[0],
-        y,
-        (((i * 40503) % 1000) / 1000 - 0.5) * spread[1]
-      );
-      dummy.rotation.y = ((i * 97) % 628) / 100;
-      dummy.scale.setScalar(s);
-      dummy.updateMatrix();
-      matrices.push(dummy.matrix.clone());
-    }
-    return { geo, mat: mat!, matrices };
-  }, [scene, count, spread[0], spread[1], size[0], size[1], y]);
-
+export function AbyssalTrench() {
   return (
-    <instancedMesh
-      args={[geo, mat, count]}
-      ref={(mesh) => {
-        if (!mesh) return;
-        matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
-        mesh.instanceMatrix.needsUpdate = true;
-      }}
-    />
+    <group>
+      {/* 
+        Stack massive cliffs to form a deep canyon.
+        Left wall — pushed further out so the submarine doesn't clip
+      */}
+      {[-40, -100, -160, -220].map((y, i) => (
+        <group key={`L-${i}`} position={[-42, y, -25]} scale={[1.3, 2.5, 2.0]} rotation={[0, 0.4 + i * 0.2, 0]}>
+          <Asset name="cliff" />
+        </group>
+      ))}
+      
+      {/* Right wall */}
+      {[-50, -110, -170, -230].map((y, i) => (
+        <group key={`R-${i}`} position={[42, y, -20]} scale={[1.3, 2.5, 2.0]} rotation={[0, -0.7 - i * 0.1, 0]}>
+          <Asset name="cliff" />
+        </group>
+      ))}
+
+      {/* The Deep Floor (Laid flat) */}
+      <group position={[0, -252, -15]} scale={[3.0, 1.0, 3.0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <Asset name="cliff" />
+      </group>
+      <group position={[-10, -255, -45]} scale={[4.0, 1.0, 3.0]} rotation={[-Math.PI / 2, 0, 1.5]}>
+        <Asset name="cliff" />
+      </group>
+    </group>
   );
 }
 
-/** Sand bed with dune-like height variation. */
-function SandBed({ width = 190, depth = 70 }: { width?: number; depth?: number }) {
-  const geo = useMemo(() => {
-    const g = new THREE.PlaneGeometry(width, depth, 110, 36);
-    const pos = g.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const y = pos.getY(i);
-      const h =
-        Math.sin(x * 0.11) * Math.cos(y * 0.13) * 1.1 +
-        Math.sin(x * 0.31 + 2.1) * 0.45 +
-        Math.cos(x * 0.052 + y * 0.09) * 0.8;
-      pos.setZ(i, h);
-    }
-    g.computeVertexNormals();
-    return g;
-  }, [width, depth]);
+/* ------------------------------------------------------------------ */
+/* The Seabed — visible sandy floor at descent terminus (y ≈ -250)     */
+/* Ensures the scroll terminates visually with a definite ground.      */
+/* ------------------------------------------------------------------ */
+
+export function Seabed() {
+  const ref = useRef<THREE.Group>(null!);
+
+  useFrame(() => {
+    const g = ref.current;
+    if (!g) return;
+    // Only show when approaching the floor
+    g.visible = oceanState.progress > 0.65;
+  });
 
   return (
-    <mesh geometry={geo} rotation={[-Math.PI / 2, 0, 0]}>
-      <meshStandardMaterial color="#12253f" roughness={0.95} metalness={0.05} />
-    </mesh>
+    <group ref={ref} position={[0, -253, -15]} visible={false}>
+      {/* Main sandy seabed plane */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[200, 200]} />
+        <meshStandardMaterial
+          color="#0a1520"
+          roughness={0.95}
+          metalness={0.05}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* Secondary darker plane slightly below to prevent see-through */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 0]}>
+        <planeGeometry args={[300, 300]} />
+        <meshBasicMaterial color="#020810" side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Subtle sandy undulations via bumped planes */}
+      {[
+        [-20, 0.1, -10, 40, 0.3],
+        [15, 0.15, 5, 35, -0.5],
+        [-5, 0.05, -25, 50, 0.8],
+      ].map(([x, yOff, z, size, rot], i) => (
+        <mesh
+          key={i}
+          position={[x, yOff as number, z]}
+          rotation={[-Math.PI / 2, 0, rot as number]}
+        >
+          <circleGeometry args={[size as number, 16]} />
+          <meshStandardMaterial
+            color="#0e1d2a"
+            roughness={1.0}
+            metalness={0.0}
+            transparent
+            opacity={0.7}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      ))}
+
+      {/* Coral reefs affixed on the seabed */}
+      <AssetBoundary>
+        <group>
+          <Asset name="coral" position={[-18, 0.5, -8]} size={8} rotation={[0, 1.2, 0]} />
+          <Asset name="coral" position={[22, 0.5, -12]} size={6.5} rotation={[0, 3.1, 0]} />
+          <Asset name="coral" position={[-8, 0.5, 10]} size={5.5} rotation={[0, 0.5, 0]} />
+          <Asset name="coral" position={[10, 0.5, -25]} size={7} rotation={[0, 2.3, 0]} />
+          <Asset name="coral" position={[-25, 0.5, -20]} size={4.5} rotation={[0, 4.5, 0]} />
+        </group>
+      </AssetBoundary>
+
+      {/* Scattered rocks on the seabed */}
+      <AssetBoundary>
+        <group>
+          <Asset name="rocks" position={[-12, 0.2, -5]} size={2.5} rotation={[0, 0.8, 0]} />
+          <Asset name="rocks" position={[8, 0.2, -18]} size={3.0} rotation={[0, 2.1, 0]} />
+          <Asset name="rocks" position={[18, 0.2, 5]} size={2.0} rotation={[0, 1.5, 0]} />
+        </group>
+      </AssetBoundary>
+
+      {/* Seaweed at the seabed edges */}
+      <AssetBoundary>
+        <group>
+          <Sway position={[-15, 0.5, -6]} phase={0.3} amp={0.04} speed={0.5}>
+            <Asset name="kelp" size={3.0} />
+          </Sway>
+          <Sway position={[12, 0.5, -14]} phase={1.8} amp={0.04} speed={0.5}>
+            <Asset name="kelp" size={2.6} />
+          </Sway>
+          <Sway position={[-22, 0.5, 8]} phase={3.1} amp={0.04} speed={0.5}>
+            <Asset name="seaweed" size={2.0} />
+          </Sway>
+        </group>
+      </AssetBoundary>
+    </group>
   );
 }
 
@@ -137,40 +176,34 @@ export function ReefShelf() {
     const g = ref.current;
     const visible = p > 0.24 && p < 0.64;
     g.visible = visible;
-    if (!visible) return;
-    g.position.y = remap(p, 0.24, 0.64, -34, 16);
   });
 
   return (
-    <group ref={ref} visible={false}>
-      <SandBed width={150} depth={46} />
+    <group ref={ref} position={[0, -110, 0]} visible={false}>
+      {/* Anchor Corals to the trench ledges instead of the flat sand */}
       <AssetBoundary>
         <group>
-          <Asset name="coral" position={[-9, 0, -8]} size={13} />
-          <Asset name="coral" position={[8, 0, -12]} size={9.5} rotation={[0, 2.2, 0]} />
-          <Asset name="coral" position={[0.5, 0, -16]} size={7.5} rotation={[0, 4, 0]} />
+          {/* Left ledge corals */}
+          <Asset name="coral" position={[-16, 8, -12]} size={13} rotation={[0.2, 0.8, -0.1]} />
+          <Asset name="coral" position={[-12, 4, -16]} size={7.5} rotation={[0, 4, 0]} />
+          {/* Right ledge corals */}
+          <Asset name="coral" position={[18, 5, -15]} size={9.5} rotation={[-0.1, 2.2, 0.1]} />
         </group>
       </AssetBoundary>
       <AssetBoundary>
         <group>
-          <RockField count={18} spread={[110, 34]} size={[0.7, 2.8]} />
-          <Sway position={[-14, 0, -6]} phase={0}>
+          <Sway position={[-14, 5, -8]} phase={0}>
             <Asset name="kelp" size={5} />
           </Sway>
-          <Sway position={[-17.5, 0, -10]} phase={1.4} amp={0.09}>
+          <Sway position={[-17.5, 7, -12]} phase={1.4} amp={0.09}>
             <Asset name="kelp" size={3.6} />
           </Sway>
-          <Sway position={[13, 0, -7]} phase={2.2}>
+          <Sway position={[15, 3, -9]} phase={2.2}>
             <Asset name="kelp" size={4.4} />
           </Sway>
-          {[-6, -2.5, 3.5, 6.5, 10].map((x, i) => (
-            <Sway key={x} position={[x, 0, -5 - (i % 3) * 2]} phase={i * 1.1} amp={0.12} speed={1.1}>
-              <Asset name="seaweed" size={1.8 + (i % 3) * 0.5} />
-            </Sway>
-          ))}
         </group>
       </AssetBoundary>
-      {/* Resident octopus, breathing on its rock */}
+      {/* Resident octopus, breathing on a left ledge */}
       <AssetBoundary>
         <OctopusPerch />
       </AssetBoundary>
@@ -187,7 +220,7 @@ function OctopusPerch() {
     ref.current.rotation.y = Math.sin(t * 0.2) * 0.3 + 0.6;
   });
   return (
-    <group position={[4.5, 0.1, -6]}>
+    <group position={[-13, 8.5, -10]} rotation={[0, 0.8, -0.15]}>
       <group ref={ref}>
         <Asset name="octopus" size={2.6} />
       </group>
@@ -209,43 +242,40 @@ export function DeepFloor() {
     const visible = p > 0.74;
     g.visible = visible;
     if (!visible) return;
-    g.position.y = Math.min(remap(p, 0.74, 0.96, -36, -7.6), -7.6);
     if (ember.current) {
       ember.current.intensity = 1.6 + Math.sin(state.clock.elapsedTime * 3.1) * 0.5;
     }
   });
 
   return (
-    <group ref={ref} visible={false}>
-      <SandBed />
+    <group ref={ref} position={[0, -245, 0]} visible={false}>
+      {/* Wreck and ruins scattered on the trench floor */}
       <AssetBoundary>
         <group>
-          <Asset name="shipwreck" position={[-8, 0.1, -14]} rotation={[0, 0.9, -0.08]} />
+          <Asset name="shipwreck" position={[-4, 0.5, -18]} rotation={[0, 0.6, -0.15]} />
           <Asset name="anchor" position={[-1.5, 0.1, -7]} rotation={[0.15, 1, 0.3]} size={2.4} />
-          <Asset name="ruins" position={[10, 0, -15]} rotation={[0, -0.5, 0]} />
-          <Asset name="ruins" position={[15.5, 0, -9]} rotation={[0.05, 1.9, 0.06]} size={4.2} />
+          <Asset name="ruins" position={[8, -0.5, -15]} rotation={[0.1, -0.5, 0.1]} />
         </group>
       </AssetBoundary>
       <AssetBoundary>
         <group>
-          <Asset name="treasure" position={[3.2, 0.12, -6.5]} rotation={[0, -0.7, 0]} />
+          <Asset name="treasure" position={[3.2, 0.5, -6.5]} rotation={[0.1, -0.7, 0]} />
           <pointLight
             ref={ember}
-            position={[3.2, 1.1, -5.9]}
+            position={[3.2, 1.5, -5.9]}
             color="#ffd27d"
             intensity={1.6}
-            distance={6}
+            distance={10}
             decay={2}
           />
         </group>
       </AssetBoundary>
       <AssetBoundary>
         <group>
-          <RockField count={22} spread={[130, 40]} size={[0.8, 3.4]} />
-          <Sway position={[-16, 0, -10]} phase={0.7} amp={0.05} speed={0.5}>
+          <Sway position={[-12, 1, -12]} phase={0.7} amp={0.05} speed={0.5}>
             <Asset name="kelp" size={3.2} />
           </Sway>
-          <Sway position={[18, 0, -13]} phase={2.9} amp={0.05} speed={0.5}>
+          <Sway position={[14, 1, -15]} phase={2.9} amp={0.05} speed={0.5}>
             <Asset name="kelp" size={2.8} />
           </Sway>
         </group>

@@ -53,7 +53,7 @@ export const MODELS = {
   turtle: { path: "/assets/models/turtle.glb", size: 3.1, yaw: Math.PI / 2 },
   octopus: { path: "/assets/models/octopus.glb", size: 2.6 },
   jellyfish: { path: "/assets/models/jellyfish.glb", size: 1.7 },
-  submarine: { path: "/assets/models/submarine.glb", size: 7.5, yaw: Math.PI / 2 },
+  submarine: { path: "/models/submarine/scene.gltf", size: 7.5, yaw: Math.PI / 2 },
   coral: { path: "/assets/models/coral.glb", size: 9, ground: true },
   rocks: { path: "/assets/models/rocks.glb", size: 3.2, ground: true },
   ruins: { path: "/assets/models/ruins.glb", size: 6.5, ground: true },
@@ -62,6 +62,9 @@ export const MODELS = {
   shipwreck: { path: "/assets/models/shipwreck.glb", size: 17, ground: true },
   treasure: { path: "/assets/models/treasure.glb", size: 2.1, ground: true },
   anchor: { path: "/assets/models/anchor.glb", size: 2.6, ground: true },
+  cliff: { path: "/models/cliffs_set__low-poly__game-ready.glb", size: 45, ground: true },
+  carp: { path: "/models/fish_carp.glb", size: 3.5, yaw: Math.PI / 2 },
+  neon: { path: "/models/fish_neon.glb", size: 2.2, yaw: Math.PI / 2 },
 } satisfies Record<string, ModelMeta>;
 
 export type ModelName = keyof typeof MODELS;

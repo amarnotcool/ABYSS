@@ -89,6 +89,9 @@ export function Asset({
         m.depthWrite = tune.opacity > 0.6;
       }
       if (tune?.wireframe && "wireframe" in m) m.wireframe = true;
+      // Ground assets (cliffs, rocks) are often single-sided — render both
+      // sides so they don't look hollow when the camera is underneath.
+      if (meta.ground) m.side = THREE.DoubleSide;
     });
 
     return holder;

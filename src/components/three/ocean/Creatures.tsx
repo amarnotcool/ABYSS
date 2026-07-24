@@ -20,9 +20,8 @@ interface Circuit {
   dir?: 1 | -1;
   bobAmp?: number;
   bobFreq?: number;
-  /** progress band [start, end] with vertical parallax while descending */
+  /** progress band [start, end] for visibility culling */
   band: [number, number];
-  parallax?: number;
 }
 
 function useCircuit(ref: React.RefObject<THREE.Group>, c: Circuit) {
@@ -42,8 +41,7 @@ function useCircuit(ref: React.RefObject<THREE.Group>, c: Circuit) {
 
     const x = Math.cos(a) * c.rx;
     const z = c.zc + Math.sin(a) * c.rz;
-    const parallax = remap(p, b0, b1, -(c.parallax ?? 9), c.parallax ?? 9);
-    const y = c.y0 + parallax + Math.sin(t * (c.bobFreq ?? 0.5) + (c.phase ?? 0)) * (c.bobAmp ?? 0.4);
+    const y = c.y0 + Math.sin(t * (c.bobFreq ?? 0.5) + (c.phase ?? 0)) * (c.bobAmp ?? 0.4);
 
     const vx = -Math.sin(a) * c.rx * c.speed * dir;
     const vz = Math.cos(a) * c.rz * c.speed * dir;
@@ -60,18 +58,30 @@ function useCircuit(ref: React.RefObject<THREE.Group>, c: Circuit) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Fish school — animated grouper clones behind a wandering leader     */
+/* Pseudo-random number generator (deterministic, seed-based)          */
 /* ------------------------------------------------------------------ */
 
-const SCHOOL = Array.from({ length: 9 }, (_, i) => ({
+function seededRandom(seed: number) {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Dense fish school — 30 fish in a big swarming shoal                 */
+/* ------------------------------------------------------------------ */
+
+const SCHOOL = Array.from({ length: 30 }, (_, i) => ({
   off: new THREE.Vector3(
-    (Math.sin(i * 2.4) - 0.5) * 3.6,
-    Math.sin(i * 1.7) * 1.6,
-    Math.cos(i * 3.1) * 2.4
+    (Math.sin(i * 1.4) - 0.5) * 6.5,
+    Math.sin(i * 1.1) * 3.0,
+    Math.cos(i * 2.1) * 4.5
   ),
-  scale: 0.8 + ((i * 37) % 10) / 18,
-  clipOffset: (i * 0.37) % 2,
-  wob: 1 + ((i * 13) % 7) / 6,
+  scale: 0.65 + ((i * 37) % 10) / 14,
+  clipOffset: (i * 0.27) % 2,
+  wob: 0.8 + ((i * 13) % 9) / 5,
 }));
 
 export function FishSchool() {
@@ -83,21 +93,19 @@ export function FishSchool() {
     const g = group.current;
     if (!g) return;
     const p = oceanState.progress;
-    const visible = p > 0.11 && p < 0.55;
+    const visible = p > 0.06 && p < 0.55;
     g.visible = visible;
     if (!visible) return;
 
     const t = state.clock.elapsedTime;
-    // Leader path: broad lissajous sweep
     const a = t * 0.16;
-    const lx = Math.sin(a) * 10;
-    const lz = -5 + Math.cos(a * 0.7) * 5;
-    const ly = remap(p, 0.11, 0.55, -8, 9) + Math.sin(t * 0.4) * 1.2;
-    const vx = Math.cos(a) * 10;
-    const vz = -Math.sin(a * 0.7) * 0.7 * 5;
+    const lx = Math.sin(a) * 13;
+    const lz = -5 + Math.cos(a * 0.7) * 7;
+    const ly = -75 + Math.sin(t * 0.4) * 1.5;
+    const vx = Math.cos(a) * 13;
+    const vz = -Math.sin(a * 0.7) * 0.7 * 7;
     const yaw = Math.atan2(-vz, vx);
 
-    // Pointer position in world at the school's depth
     const vp = state.viewport.getCurrentViewport(state.camera, tmp.set(0, 0, lz));
     const mx = oceanState.mouseX * (vp.width / 2);
     const my = oceanState.mouseY * (vp.height / 2);
@@ -105,11 +113,10 @@ export function FishSchool() {
     SCHOOL.forEach((f, i) => {
       const fg = fishRefs.current[i];
       if (!fg) return;
-      let x = lx + f.off.x + Math.sin(t * f.wob + i) * 0.5;
-      let y = ly + f.off.y + Math.cos(t * f.wob * 0.8 + i * 2) * 0.4;
+      let x = lx + f.off.x + Math.sin(t * f.wob + i) * 0.6;
+      let y = ly + f.off.y + Math.cos(t * f.wob * 0.8 + i * 2) * 0.5;
       const z = lz + f.off.z;
 
-      // dart away from the cursor
       const dx = x - mx;
       const dy = y - my;
       const d = Math.hypot(dx, dy);
@@ -138,14 +145,136 @@ export function FishSchool() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Second school — smaller fish at a different depth band               */
+/* ------------------------------------------------------------------ */
+
+const NEON_SCHOOL = Array.from({ length: 18 }, (_, i) => ({
+  off: new THREE.Vector3(
+    (Math.sin(i * 2.1) - 0.5) * 5.0,
+    Math.sin(i * 1.6) * 2.2,
+    Math.cos(i * 2.8) * 3.5
+  ),
+  scale: 0.5 + ((i * 23) % 10) / 18,
+  clipOffset: (i * 0.43) % 2,
+  wob: 1.0 + ((i * 17) % 7) / 5,
+}));
+
+export function NeonSchool() {
+  const group = useRef<THREE.Group>(null!);
+  const fishRefs = useRef<Array<THREE.Group | null>>([]);
+
+  useFrame((state) => {
+    const g = group.current;
+    if (!g) return;
+    const p = oceanState.progress;
+    const visible = p > 0.12 && p < 0.50;
+    g.visible = visible;
+    if (!visible) return;
+
+    const t = state.clock.elapsedTime;
+    const a = t * 0.2 + 3.0;
+    const lx = Math.sin(a) * 10;
+    const lz = -7 + Math.cos(a * 0.6) * 5;
+    const ly = -95 + Math.sin(t * 0.5 + 1.0) * 1.2;
+    const vx = Math.cos(a) * 10;
+    const vz = -Math.sin(a * 0.6) * 0.6 * 5;
+    const yaw = Math.atan2(-vz, vx);
+
+    NEON_SCHOOL.forEach((f, i) => {
+      const fg = fishRefs.current[i];
+      if (!fg) return;
+      const x = lx + f.off.x + Math.sin(t * f.wob + i) * 0.5;
+      const y = ly + f.off.y + Math.cos(t * f.wob * 0.7 + i * 2) * 0.4;
+      const z = lz + f.off.z;
+      fg.position.set(x, y, z);
+      fg.rotation.y = yaw + Math.sin(t * 1.1 + i) * 0.15;
+    });
+  });
+
+  return (
+    <group ref={group} visible={false}>
+      {NEON_SCHOOL.map((f, i) => (
+        <group key={i} ref={(el) => (fishRefs.current[i] = el)}>
+          <AssetBoundary>
+            <Asset name="fish" size={0.7 * f.scale} clipSpeed={1.3} clipOffset={f.clipOffset} />
+          </AssetBoundary>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Scattered random fish — 20 solo fish on randomized circuits         */
+/* spread throughout the entire ocean from surface to deep             */
+/* ------------------------------------------------------------------ */
+
+const RAND = seededRandom(42);
+
+const SCATTERED_FISH: Circuit[] = Array.from({ length: 20 }, (_, i) => {
+  const r = () => RAND();
+  // Distribute fish across the full depth range
+  // Map i to a progress band so fish appear at all depths
+  const depthSlot = i / 20;
+  const bandCenter = 0.05 + depthSlot * 0.85;
+  const bandWidth = 0.08 + r() * 0.08;
+  // Y position: map progress band to approximate world Y
+  const y0 = -(bandCenter * 245) + (r() - 0.5) * 15;
+
+  return {
+    rx: 4 + r() * 10,
+    rz: 2 + r() * 6,
+    y0,
+    zc: -4 - r() * 12,
+    speed: 0.06 + r() * 0.14,
+    phase: r() * Math.PI * 2,
+    dir: (r() > 0.5 ? 1 : -1) as 1 | -1,
+    bobAmp: 0.3 + r() * 0.6,
+    bobFreq: 0.3 + r() * 0.4,
+    band: [
+      Math.max(0, bandCenter - bandWidth),
+      Math.min(1.0, bandCenter + bandWidth),
+    ] as [number, number],
+  };
+});
+
+function RandomFish({ circuit, index }: { circuit: Circuit; index: number }) {
+  const ref = useRef<THREE.Group>(null!);
+  useCircuit(ref, circuit);
+  const scale = 0.7 + ((index * 31) % 10) / 12;
+  return (
+    <group ref={ref} visible={false}>
+      <AssetBoundary>
+        <Asset
+          name="fish"
+          size={1.1 * scale}
+          clipSpeed={0.9 + ((index * 7) % 5) / 10}
+          clipOffset={(index * 0.53) % 2}
+        />
+      </AssetBoundary>
+    </group>
+  );
+}
+
+export function ScatteredReefFish() {
+  return (
+    <>
+      {SCATTERED_FISH.map((c, i) => (
+        <RandomFish key={i} circuit={c} index={i} />
+      ))}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Solo swimmers                                                       */
 /* ------------------------------------------------------------------ */
 
 export function MantaGlide() {
   const ref = useRef<THREE.Group>(null!);
   useCircuit(ref, {
-    rx: 13, rz: 6, y0: 1.5, zc: -10, speed: 0.1, phase: 1.2,
-    bobAmp: 0.8, bobFreq: 0.3, band: [0.17, 0.5], parallax: 10,
+    rx: 13, rz: 6, y0: -80, zc: -10, speed: 0.1, phase: 1.2,
+    bobAmp: 0.8, bobFreq: 0.3, band: [0.17, 0.5],
   });
   return (
     <group ref={ref} visible={false}>
@@ -159,8 +288,8 @@ export function MantaGlide() {
 export function TurtleGlide() {
   const ref = useRef<THREE.Group>(null!);
   useCircuit(ref, {
-    rx: 9, rz: 4.5, y0: -1, zc: -7, speed: 0.07, phase: 4, dir: -1,
-    bobAmp: 0.6, bobFreq: 0.35, band: [0.27, 0.58], parallax: 9,
+    rx: 9, rz: 4.5, y0: -105, zc: -7, speed: 0.07, phase: 4, dir: -1,
+    bobAmp: 0.6, bobFreq: 0.35, band: [0.27, 0.58],
   });
   return (
     <group ref={ref} visible={false}>
@@ -174,8 +303,8 @@ export function TurtleGlide() {
 export function SharkPatrol() {
   const ref = useRef<THREE.Group>(null!);
   useCircuit(ref, {
-    rx: 12, rz: 7, y0: 0.5, zc: -12, speed: 0.14, phase: 2.6,
-    bobAmp: 0.4, bobFreq: 0.45, band: [0.48, 0.74], parallax: 10,
+    rx: 12, rz: 7, y0: -150, zc: -12, speed: 0.14, phase: 2.6,
+    bobAmp: 0.4, bobFreq: 0.45, band: [0.48, 0.74],
   });
   return (
     <group ref={ref} visible={false}>
@@ -225,7 +354,7 @@ export function WhaleCrossing() {
     }
     g.visible = true;
     const x = THREE.MathUtils.lerp(-55, 55, el);
-    g.position.set(x, 4 + Math.sin(el * Math.PI * 2) * 1.5, -30);
+    g.position.set(x, -190 + Math.sin(el * Math.PI * 2) * 1.5, -30);
     g.rotation.set(0, 0, Math.sin(t * 0.3) * 0.03);
   });
 
@@ -263,12 +392,11 @@ export function JellyfishField() {
     if (!visible) return;
 
     const t = state.clock.elapsedTime;
-    const parallax = remap(p, 0.55, 0.88, -10, 10);
     JELLIES.forEach((j, i) => {
       const jg = refs.current[i];
       if (!jg) return;
       const rise = ((t * 0.3 + j.yOff) % 18) - 9;
-      jg.position.set(j.x + Math.sin(t * 0.25 + j.phase) * 1.4, rise + parallax, j.z);
+      jg.position.set(j.x + Math.sin(t * 0.25 + j.phase) * 1.4, -175 + rise, j.z);
       const pulse = 1 + Math.sin(t * 1.9 + j.phase) * 0.12;
       jg.scale.set(j.scale * (2 - pulse) * 0.9, j.scale * pulse, j.scale * (2 - pulse) * 0.9);
       jg.rotation.y = t * 0.1 + j.phase;
@@ -299,8 +427,8 @@ export function AnglerLurk() {
   const ref = useRef<THREE.Group>(null!);
   const lure = useRef<THREE.PointLight>(null!);
   useCircuit(ref, {
-    rx: 5, rz: 2.5, y0: -3.2, zc: -8, speed: 0.09, phase: 0.4, dir: -1,
-    bobAmp: 0.35, bobFreq: 0.6, band: [0.8, 1.01], parallax: 7,
+    rx: 5, rz: 2.5, y0: -225, zc: -8, speed: 0.09, phase: 0.4, dir: -1,
+    bobAmp: 0.35, bobFreq: 0.6, band: [0.8, 1.01],
   });
 
   useFrame((state) => {
@@ -345,8 +473,8 @@ export function SubmarineEscort() {
 
     g.position.set(
       3.6 + Math.sin(t * 0.22) * 0.8,
-      THREE.MathUtils.lerp(12, 1.2, enter) + Math.sin(t * 0.55) * 0.4,
-      -4 + Math.cos(t * 0.17) * 0.6
+      state.camera.position.y - 1.2 + Math.sin(t * 0.55) * 0.4,
+      -8 + Math.cos(t * 0.17) * 0.6
     );
     g.rotation.set(
       oceanState.mouseY * 0.05 + Math.sin(t * 0.4) * 0.03,

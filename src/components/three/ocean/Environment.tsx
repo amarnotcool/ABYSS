@@ -1,5 +1,5 @@
 import { useMemo, useRef } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame, useThree, useLoader } from "@react-three/fiber";
 import { Environment, Lightformer } from "@react-three/drei";
 import * as THREE from "three";
 import { oceanState } from "@/lib/oceanState";
@@ -61,10 +61,17 @@ export function Backdrop() {
     m.uniforms.uTime.value = state.clock.elapsedTime;
     samplePalette(oceanState.progress, m.uniforms.uTop.value, m.uniforms.uBottom.value);
     m.uniforms.uCaustics.value = remap(oceanState.progress, 0.0, 0.3, 1, 0);
+
+    // Make backdrop track the camera vertically so it covers the entire 250m descent
+    const mesh = m as any;
+    if (mesh._parentMesh) {
+      // Keep the top of the Backdrop underwater (y <= 0) by clamping its center to -70
+      mesh._parentMesh.position.y = Math.min(state.camera.position.y, -70);
+    }
   });
 
   return (
-    <mesh position={[0, 0, -44]}>
+    <mesh position={[0, -70, -44]} ref={(el) => { if (el && mat.current) (mat.current as any)._parentMesh = el; }}>
       <planeGeometry args={[240, 140]} />
       <shaderMaterial
         ref={mat}
@@ -241,6 +248,7 @@ export function Atmosphere() {
 
   return (
     <>
+      <CinematicMist />
       <hemisphereLight ref={hemi} args={["#9fd4f8", "#0a2c58", 0.9]} />
       <directionalLight ref={sun} position={[6, 18, 4]} color="#cfeaff" intensity={2.6} />
       <ambientLight intensity={0.25} color="#4A90E2" />
@@ -266,15 +274,123 @@ export function Atmosphere() {
 /* ------------------------------------------------------------------ */
 
 export function CameraRig() {
+  const targetLook = useMemo(() => new THREE.Vector3(), []);
+
   useFrame((state) => {
     const t = state.clock.elapsedTime;
     const cam = state.camera;
-    const targetX = oceanState.mouseX * 0.9 + Math.sin(t * 0.11) * 0.4 + Math.sin(t * 0.23) * 0.18;
-    const targetY = oceanState.mouseY * 0.55 + Math.sin(t * 0.17) * 0.28 + Math.cos(t * 0.07) * 0.12;
-    cam.position.x = THREE.MathUtils.lerp(cam.position.x, targetX, 0.03);
-    cam.position.y = THREE.MathUtils.lerp(cam.position.y, targetY, 0.03);
-    cam.lookAt(0, 0, -12);
-    cam.rotation.z += Math.sin(t * 0.13) * 0.013 + Math.sin(t * 0.31) * 0.004;
+    const p = oceanState.progress;
+
+    // 1. Deep underwater sway
+    const swayX = oceanState.mouseX * 0.9 + Math.sin(t * 0.11) * 0.4 + Math.sin(t * 0.23) * 0.18;
+    const swayY = oceanState.mouseY * 0.55 + Math.sin(t * 0.17) * 0.28 + Math.cos(t * 0.07) * 0.12;
+
+    // 2. Surface handheld sway
+    const floatY = Math.sin(t * 1.2) * 0.08 + Math.cos(t * 0.8) * 0.04;
+    const floatX = Math.sin(t * 0.7) * 0.12 + oceanState.mouseX * 0.5;
+    const floatZ = Math.cos(t * 0.6) * 0.05;
+
+    // 3. True scale physical camera descent to -245 meters
+    //    Clamped so the camera never sinks below the seabed floor
+    const descentY = Math.max(-245, 0.45 - p * 245.0);
+
+    // Blend factors (Surface to Deep transition between p=0 and p=0.08)
+    const surfaceWeight = Math.max(0, 1.0 - p * 12.0); 
+    const deepWeight = 1.0 - surfaceWeight;
+
+    // Blend camera position
+    const targetX = floatX * surfaceWeight + swayX * deepWeight;
+    const targetY = descentY + floatY * surfaceWeight + swayY * deepWeight;
+    const targetZ = (3.8 + floatZ) * surfaceWeight + 9.0 * deepWeight;
+
+    cam.position.x = THREE.MathUtils.lerp(cam.position.x, targetX, 0.04);
+    cam.position.y = THREE.MathUtils.lerp(cam.position.y, targetY, 0.04);
+    cam.position.z = THREE.MathUtils.lerp(cam.position.z, targetZ, 0.04);
+
+    // Blend look target
+    // At surface (pitch ~-0.06), look target is roughly straight ahead and slightly down.
+    const surfaceLookX = 0;
+    const surfaceLookY = targetY - 1.0; 
+    const surfaceLookZ = targetZ - 13.8;
+    
+    // Deep underwater look target
+    const deepLookX = 0;
+    const deepLookY = targetY;
+    const deepLookZ = targetZ - 21.0;
+
+    targetLook.x = THREE.MathUtils.lerp(targetLook.x, surfaceLookX * surfaceWeight + deepLookX * deepWeight, 0.04);
+    targetLook.y = THREE.MathUtils.lerp(targetLook.y, surfaceLookY * surfaceWeight + deepLookY * deepWeight, 0.04);
+    targetLook.z = THREE.MathUtils.lerp(targetLook.z, surfaceLookZ * surfaceWeight + deepLookZ * deepWeight, 0.04);
+
+    cam.lookAt(targetLook);
+
+    // Deep sea roll (z rotation)
+    cam.rotation.z += (Math.sin(t * 0.13) * 0.013 + Math.sin(t * 0.31) * 0.004) * deepWeight;
   });
   return null;
 }
+
+/* ------------------------------------------------------------------ */
+/* Cinematic volumetric mist overlay                                   */
+/* ------------------------------------------------------------------ */
+
+export function CinematicMist() {
+  const tex = useLoader(THREE.TextureLoader, "/models/Texturelabs_Atmosphere_210M.jpg");
+  const matRef = useRef<THREE.MeshBasicMaterial>(null!);
+
+  useFrame(() => {
+    if (!matRef.current) return;
+    const p = oceanState.progress;
+    // Fade mist in as you plunge, fade out when super deep
+    const inFade = remap(p, 0.05, 0.3, 0.0, 0.25);
+    const outFade = remap(p, 0.7, 0.95, 1.0, 0.0);
+    matRef.current.opacity = inFade * outFade;
+  });
+
+  return (
+    <group>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <MistPlane key={i} tex={tex} index={i} matRef={i === 0 ? matRef : undefined} />
+      ))}
+    </group>
+  );
+}
+
+function MistPlane({ tex, index, matRef }: { tex: THREE.Texture; index: number; matRef?: any }) {
+  const ref = useRef<THREE.Mesh>(null!);
+  
+  useFrame((state) => {
+    if (!ref.current) return;
+    const t = state.clock.elapsedTime;
+    
+    // Position slightly differently based on index to create parallax
+    const offsetZ = -12 - (index * 6);
+    const floatY = Math.sin(t * 0.15 + index * 2.1) * 6;
+    const floatX = Math.cos(t * 0.12 + index * 1.7) * 10;
+    
+    ref.current.position.set(
+      state.camera.position.x + floatX,
+      state.camera.position.y + floatY,
+      state.camera.position.z + offsetZ
+    );
+    
+    // Always face camera
+    ref.current.quaternion.copy(state.camera.quaternion);
+  });
+
+  return (
+    <mesh ref={ref}>
+      <planeGeometry args={[55, 55]} />
+      <meshBasicMaterial
+        ref={matRef}
+        map={tex}
+        transparent
+        opacity={0}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        color="#7ac3ff"
+      />
+    </mesh>
+  );
+}
+
