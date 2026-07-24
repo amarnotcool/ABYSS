@@ -133,7 +133,7 @@ function InfiniteGerstnerOcean() {
 
   return (
     <mesh ref={meshRef} position={[0, -1.35, -10]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[180, 140, 128, 96]} />
+      <planeGeometry args={[160, 120, 48, 36]} />
       <shaderMaterial
         vertexShader={waterVertexShader}
         fragmentShader={waterFragmentShader}
@@ -378,12 +378,12 @@ export function CinematicOceanHero() {
       <Canvas
         camera={{ position: [0, 0.45, 3.8], fov: 55 }}
         gl={{
-          antialias: true,
+          antialias: false,
           powerPreference: "high-performance",
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.15,
         }}
-        dpr={[1, 1.5]}
+        dpr={[1, 1.25]}
       >
         <HandheldCameraRig />
 

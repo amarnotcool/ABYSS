@@ -12,12 +12,15 @@ export default defineConfig({
   build: {
     target: "es2020",
     chunkSizeWarningLimit: 1200,
+    cssCodeSplit: true,
+    minify: "esbuild",
     rollupOptions: {
       output: {
         manualChunks: {
-          three: ["three", "@react-three/fiber", "@react-three/drei", "@react-three/postprocessing"],
-          motion: ["framer-motion", "gsap"],
-          vendor: ["react", "react-dom", "react-router-dom"],
+          "three-core": ["three"],
+          "three-fiber": ["@react-three/fiber", "@react-three/drei", "@react-three/postprocessing"],
+          "motion-gsap": ["framer-motion", "gsap"],
+          "react-vendor": ["react", "react-dom", "react-router-dom", "react-helmet-async"],
         },
       },
     },

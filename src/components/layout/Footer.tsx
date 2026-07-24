@@ -53,7 +53,7 @@ export function Footer() {
               Deep Sea Exploration Co. Luxury submersible voyages from sunlit
               reefs to the hadal trench.
             </p>
-            <p className="mt-6 font-mono text-[11px] uppercase tracking-widest2 text-slate-500">
+            <p className="mt-6 font-mono text-[11px] uppercase tracking-widest2 text-slate-400">
               Explore the last unknown world
             </p>
           </div>
@@ -79,12 +79,12 @@ export function Footer() {
         </div>
 
         <div className="mt-16 flex flex-col items-center justify-between gap-6 border-t border-glow-mist/10 pt-8 md:flex-row">
-          <div className="text-center text-xs text-slate-500 md:text-left">
+          <div className="text-center text-xs text-slate-400 md:text-left">
             <p>
               © {new Date().getFullYear()} ABYSS Deep Sea Exploration Co. A
               fictional experience, crafted for the surface web.
             </p>
-            <p className="mt-1 text-[10px] text-slate-600">
+            <p className="mt-1 text-[10px] text-slate-400">
               3D models by Quaternius, Kenney, Poly by Google, MiniPoly,
               Geoffrey Bell &amp; Laney XR Labs (CC0 / CC-BY, via Poly Pizza).
             </p>

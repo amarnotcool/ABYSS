@@ -440,7 +440,7 @@ function SceneFloor() {
           </div>
         </Reveal>
         <Reveal delay={0.5}>
-          <p className="mt-14 font-mono text-[10px] uppercase tracking-widest2 text-slate-500">
+          <p className="mt-14 font-mono text-[10px] uppercase tracking-widest2 text-slate-400">
             Private charters · Research fellowships · Film partnerships
           </p>
         </Reveal>

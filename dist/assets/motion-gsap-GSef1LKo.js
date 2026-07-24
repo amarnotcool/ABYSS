@@ -1,4 +1,4 @@
-import{r as A}from"./vendor-C_uz7my2.js";var Eo={exports:{}},Gi={};/**
+import{r as A}from"./react-vendor-D0TNd7q1.js";var Eo={exports:{}},Gi={};/**
  * @license React
  * react-jsx-runtime.production.min.js
  *
